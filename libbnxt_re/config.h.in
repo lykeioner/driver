@@ -1,0 +1,196 @@
+/* config.h.in.  Generated from configure.ac by autoheader.  */
+
+/* Rdma-Core Package alloc_context has private data */
+#undef ALLOC_CONTEXT_HAS_PRIVATE_DATA
+
+/* Rdma-Core Package async_event has 1 argument */
+#undef ASYNC_EVENT_VERB_HAS_1_ARG
+
+/* DP spinlock disabled */
+#undef BNXT_RE_DISABLE_DP_SPINLOCK
+
+/* deferred db enabled */
+#undef BNXT_RE_ENABLE_DEFFER_DB
+
+/* deferred arm enabled */
+#undef BNXT_RE_ENABLE_DEF_ARM
+
+/* dev debug enabled */
+#undef BNXT_RE_ENABLE_DEV_DEBUG
+
+/* 32-bit platform detected */
+#undef BNXT_RE_HAVE_DB_LOCK
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
+
+/* flow spec structs defined */
+#undef HAVE_FLOW_SPEC
+
+/* ibv_cmd_modify_qp_ex supported */
+#undef HAVE_IBV_CMD_MODIFY_QP_EX
+
+/* Rdma-Core Package has verbs ibv_reg_dmabuf_mr defined */
+#undef HAVE_IBV_DMABUF
+
+/* Define to 1 if you have the `ibv_read_sysfs_file' function. */
+#undef HAVE_IBV_READ_SYSFS_FILE
+
+/* Define to 1 if you have the `ibv_register_driver' function. */
+#undef HAVE_IBV_REGISTER_DRIVER
+
+/* Rdma-Core Package has verbs ibv_qp_ex defined */
+#undef HAVE_IBV_WR_API
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* have eng-8916 definition */
+#undef HAVE_J8916_ENABLED
+
+/* Define to 1 if you have the `ibverbs' library (-libverbs). */
+#undef HAVE_LIBIBVERBS
+
+/* Define to 1 if you have the <locale.h> header file. */
+#undef HAVE_LOCALE_H
+
+/* local-invalidate supported */
+#undef HAVE_LOCAL_INV
+
+/* Define to 1 if you have the <memory.h> header file. */
+#undef HAVE_MEMORY_H
+
+/* using rdma-core package version rcore_version */
+#undef HAVE_RDMA_CORE_PKG
+
+/* rdma_driver_id in ib_user_ioctl_verbs.h defined */
+#undef HAVE_RDMA_DRIVER_ID
+
+/* Define to 1 if you have the <rdma/ib_user_ioctl_cmds.h> header file. */
+#undef HAVE_RDMA_IB_USER_IOCTL_CMDS_H
+
+/* send-with-invalidate supported */
+#undef HAVE_SEND_WITH_INV
+
+/* Define to 1 if you have the <stddef.h> header file. */
+#undef HAVE_STDDEF_H
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
+
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if you have the <sysfs/libsysfs.h> header file. */
+#undef HAVE_SYSFS_LIBSYSFS_H
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* ib_uverbs_cq_moderation defined */
+#undef HAVE_UVERBS_CQ_MOD_ST
+
+/* ib_uverbs_ex_modify_cq defined */
+#undef HAVE_UVERBS_EX_MODIFY_CQ_ST
+
+/* ibv_send_wr has bind_mw member */
+#undef HAVE_WR_BIND_MW
+
+/* Rdma-Core Package ibv_cmd_alloc_mw has single argument */
+#undef IBV_CMD_ALLOC_MW_HAS_1_ARG
+
+/* Rdma-Core Package ibv_cmd_create_flow has 5 arguments */
+#undef IBV_CMD_CREATE_FLOW_HAS_5_ARG
+
+/* Rdma-Core Package ibv_cmd_create_qp_ex has 7 arguments */
+#undef IBV_CMD_CREATE_QP_EX_HAS_7_ARG
+
+/* Rdma-Core Package ibv_cmd_modify_qp_ex has 7 arguments */
+#undef IBV_CMD_MODIFY_QP_EX_HAS_7_ARG
+
+/* Rdma-Core Package ibv_cmd_modify_qp_ex has 9 arguments */
+#undef IBV_CMD_MODIFY_QP_EX_HAS_9_ARG
+
+/* Rdma-Core Package ibv_cmd_reg_dmabuf_mr has 8 arguments */
+#undef IBV_CMD_REG_DMABUF_MR_HAS_8_ARG
+
+/* Rdma-Core Package has free context in ibv_context_ops */
+#undef IBV_FREE_CONTEXT_IN_CONTEXT_OPS
+
+/* Define if ib_user_ioctl_cmds.h file */
+#undef IB_USER_IOCTL_CMDS
+
+/* Define to the sub-directory where libtool stores uninstalled libraries. */
+#undef LT_OBJDIR
+
+/* Name of package */
+#undef PACKAGE
+
+/* Define to the address where bug reports for this package should be sent. */
+#undef PACKAGE_BUGREPORT
+
+/* Define to the full name of this package. */
+#undef PACKAGE_NAME
+
+/* Define to the full name and version of this package. */
+#undef PACKAGE_STRING
+
+/* Define to the one symbol short name of this package. */
+#undef PACKAGE_TARNAME
+
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
+
+/* Define to the version of this package. */
+#undef PACKAGE_VERSION
+
+/* Rdma-Core Package PROVIDER_DRIVER macro has 2 arguments */
+#undef PROVIDER_DRIVER_HAS_2_ARGS
+
+/* Rdma-Core Package has PROVIDER_DRIVER macro */
+#undef RCP_HAS_PROVIDER_DRIVER
+
+/* Rdma-Core Package uses alloc_context instead of init_context */
+#undef RCP_USE_ALLOC_CONTEXT
+
+/* Rdma-Core Package uses IB user verbs API */
+#undef RCP_USE_IB_UVERBS
+
+/* Rdma-Core Package reg_mr has 5 argument */
+#undef REG_MR_VERB_HAS_5_ARG
+
+/* sched_yield defined */
+#undef SCHED_YIELD_DEFINED
+
+/* The size of `long', as computed by sizeof. */
+#undef SIZEOF_LONG
+
+/* Define to 1 if you have the ANSI C header files. */
+#undef STDC_HEADERS
+
+/* Rdma-Core Package has 5 Arg for verbs_init_and_alloc_context macro */
+#undef VERBS_INIT_AND_ALLOC_CONTEXT_HAS_5_ARG
+
+/* Rdma-Core Package has verbs_mr defined */
+#undef VERBS_MR_DEFINED
+
+/* Rdma-Core Package has only query_device_ex */
+#undef VERBS_ONLY_QUERY_DEVICE_EX_DEFINED
+
+/* Version number of package */
+#undef VERSION
+
+/* Define to empty if `const' does not conform to ANSI C. */
+#undef const
