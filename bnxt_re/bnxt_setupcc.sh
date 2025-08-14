@@ -1,7 +1,7 @@
 #!/bin/bash
 
 MAX_INTERFACE_COUNT=2
-VERSION="233.2.82.0"
+VERSION="233.2.77.9"
 
 function usage {
     echo "bnxt_setupcc.sh version: " $VERSION

@@ -163,9 +163,11 @@ struct bnxt_re_qp {
 	struct rdma_user_mmap_entry *rq_hdbr_mmap;
 
 	/* Below members added for DV support */
+	bool			is_dv_qp;
 	struct bnxt_re_dv_umem *sq_umem;
 	struct bnxt_re_dv_umem *rq_umem;
 	struct list_head	dv_res_list;
+	const struct ib_gid_attr *sgid_attr;
 };
 
 struct bnxt_re_cq {
@@ -195,6 +197,7 @@ struct bnxt_re_cq {
 	bool			is_snapdump_captured;
 	struct ib_umem		*cqprod;
 	struct ib_umem		*cqcons;
+	bool			is_dv_cq;
 	struct bnxt_re_dv_umem	*umem_handle;
 	struct list_head	dv_res_list;
 };

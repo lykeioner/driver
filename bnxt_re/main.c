@@ -3638,19 +3638,6 @@ static void bnxt_re_res_list_init(struct bnxt_re_dev *rdev)
 	}
 }
 
-static void bnxt_re_dv_res_list_init(struct bnxt_re_dev *rdev)
-{
-	struct bnxt_re_dv_res_list *res;
-	int i;
-
-	for (i = 0; i < BNXT_RE_DV_RES_TYPE_MAX; i++) {
-		res = &rdev->dv_res_list[i];
-
-		INIT_LIST_HEAD(&res->head);
-		mutex_init(&res->lock);
-	}
-}
-
 static struct bnxt_re_dev *bnxt_re_dev_alloc(struct net_device *netdev,
 					   struct bnxt_en_dev *en_dev)
 {
@@ -3704,7 +3691,6 @@ static struct bnxt_re_dev *bnxt_re_dev_alloc(struct net_device *netdev,
 	if (!rdev->lossless_qid)
 		goto free_d2p;
 	bnxt_re_res_list_init(rdev);
-	bnxt_re_dv_res_list_init(rdev);
 	rdev->cq_coalescing.buf_maxtime = BNXT_QPLIB_CQ_COAL_DEF_BUF_MAXTIME;
 	if (BNXT_RE_CHIP_P7(en_dev->chip_num)) {
 		rdev->cq_coalescing.normal_maxbuf = BNXT_QPLIB_CQ_COAL_DEF_NORMAL_MAXBUF_P7;
@@ -5176,29 +5162,66 @@ static void bnxt_re_clean_udcc_dump(struct bnxt_re_dev *rdev)
 static void bnxt_re_free_dv_res(struct bnxt_re_dev *rdev)
 {
 #ifdef HAVE_UAPI_DEF
-	struct bnxt_re_dv_res_list *dv_res_list;
+	struct bnxt_re_res_list *res_list;
 	struct bnxt_re_qp *qp, *tmp_qp;
 	struct bnxt_re_cq *cq, *tmp_cq;
+	LIST_HEAD(tmp_qp_list);
+	LIST_HEAD(tmp_cq_list);
 
-	dv_res_list = &rdev->dv_res_list[BNXT_RE_DV_RES_TYPE_QP];
-	mutex_lock(&dv_res_list->lock);
-	list_for_each_entry_safe(qp, tmp_qp, &dv_res_list->head, dv_res_list) {
-		list_del(&qp->dv_res_list);
+	/* Read dv_qp_count before traversing the QP resource list.
+	 * By this time, it is ensured that there are no pending
+	 * DV create/destroy ops. So, this count must not change
+	 * while we are here.
+	 */
+	if (!atomic_read(&rdev->dv_qp_count))
+		goto free_dv_cqs;
+
+	/* Move DV QPs from the resource list to a tmp list; we
+	 * can't destroy them under the spin lock, as it involves
+	 * blocking calls (qplib).
+	 */
+	res_list = &rdev->res_list[BNXT_RE_RES_TYPE_QP];
+	spin_lock(&res_list->lock);
+	list_for_each_entry_safe(qp, tmp_qp, &res_list->head, res_list) {
+		if (qp->is_dv_qp)
+			list_move(&qp->res_list, &tmp_qp_list);
+	}
+	spin_unlock(&res_list->lock);
+
+	/* Walk the tmp list and remove them from the rdev list */
+	mutex_lock(&rdev->qp_lock);
+	list_for_each_entry_safe(qp, tmp_qp, &tmp_qp_list, res_list)
+		list_del_init(&qp->list);
+	mutex_unlock(&rdev->qp_lock);
+
+	/* Walk the tmp list again, remove them from the resource list
+	 * and finally destroy them.
+	 */
+	list_for_each_entry_safe(qp, tmp_qp, &tmp_qp_list, res_list) {
+		list_del_init(&qp->res_list);
 		dev_dbg(rdev_to_dev(rdev),
 			"%s: Freeing DV QP : 0x%x", __func__, qp->qplib_qp.id);
 		bnxt_re_dv_destroy_qp(rdev, qp);
 	}
-	mutex_unlock(&dv_res_list->lock);
 
-	dv_res_list = &rdev->dv_res_list[BNXT_RE_DV_RES_TYPE_CQ];
-	mutex_lock(&dv_res_list->lock);
-	list_for_each_entry_safe(cq, tmp_cq, &dv_res_list->head, dv_res_list) {
-		list_del(&cq->dv_res_list);
+free_dv_cqs:
+	if (!atomic_read(&rdev->dv_cq_count))
+		return;
+
+	res_list = &rdev->res_list[BNXT_RE_RES_TYPE_CQ];
+	spin_lock(&res_list->lock);
+	list_for_each_entry_safe(cq, tmp_cq, &res_list->head, res_list) {
+		if (cq->is_dv_cq)
+			list_move(&cq->res_list, &tmp_cq_list);
+	}
+	spin_unlock(&res_list->lock);
+
+	list_for_each_entry_safe(cq, tmp_cq, &tmp_cq_list, res_list) {
+		list_del_init(&cq->res_list);
 		dev_dbg(rdev_to_dev(rdev),
 			"%s: Freeing DV CQ : 0x%x", __func__, cq->qplib_cq.id);
 		bnxt_re_dv_destroy_cq(rdev, cq);
 	}
-	mutex_unlock(&dv_res_list->lock);
 #endif
 }
 
@@ -5213,6 +5236,12 @@ static void bnxt_re_free_dv_res(struct bnxt_re_dev *rdev)
 void bnxt_re_ib_uninit(struct bnxt_re_dev *rdev)
 {
 	if (test_bit(BNXT_RE_FLAG_IBDEV_REGISTERED, &rdev->flags)) {
+		/* TODO The flag is used to synchronize driver unload
+		 * and DV resource create/destroy.
+		 * Re-visit this before pushing upstream.
+		 */
+		set_bit(BNXT_RE_FLAG_UNLOADING, &rdev->flags);
+		msleep(10);
 		bnxt_re_free_dv_res(rdev);
 		bnxt_re_stop_user_qps_nonfatal(rdev);
 		bnxt_re_drain_kernel_qps_fatal(rdev);

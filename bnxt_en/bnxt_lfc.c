@@ -53,6 +53,12 @@ static int lfc_device_event(struct notifier_block *unused,
 	struct net_device *dev = netdev_notifier_info_to_dev(ptr);
 
 	switch (event) {
+	case NETDEV_REGISTER:
+		mutex_lock(&blfc_global_dev.bnxt_lfc_lock);
+		for (i = 0; i < MAX_LFC_CACHED_NET_DEVICES; i++)
+			blfc_array[i].removed = 0;
+		mutex_unlock(&blfc_global_dev.bnxt_lfc_lock);
+		break;
 	case NETDEV_UNREGISTER:
 		mutex_lock(&blfc_global_dev.bnxt_lfc_lock);
 		for (i = 0; i < MAX_LFC_CACHED_NET_DEVICES; i++) {
@@ -660,14 +666,8 @@ static int32_t bnxt_lfc_process_req(struct bnxt_lfc_dev *blfc_dev,
 
 static int32_t bnxt_lfc_open(struct inode *inode, struct file *flip)
 {
-	u32 i;
-
 	BNXT_LFC_DEBUG(NULL, "open is called");
 
-	mutex_lock(&blfc_global_dev.bnxt_lfc_lock);
-	for (i = 0; i < MAX_LFC_CACHED_NET_DEVICES; i++)
-		blfc_array[i].removed = 0;
-	mutex_unlock(&blfc_global_dev.bnxt_lfc_lock);
 	return 0;
 }
 
@@ -902,24 +902,10 @@ int32_t __init bnxt_lfc_init(void)
 
 void bnxt_lfc_exit(void)
 {
-	struct bnxt_lfc_dev *blfc_dev;
-	u32 i;
 	if (!bnxt_lfc_inited)
 		return;
 
 	bnxt_en_unregister_netdevice_notifier(&lfc_device_notifier);
-	mutex_lock(&blfc_global_dev.bnxt_lfc_lock);
-	for (i = 0; i < MAX_LFC_CACHED_NET_DEVICES; i++) {
-		blfc_dev = blfc_array[i].bnxt_lfc_dev;
-		if (blfc_dev) {
-			blfc_array[i].bnxt_lfc_dev = NULL;
-			blfc_array[i].taken = 0;
-			blfc_array[i].removed = 1;
-			dev_put(blfc_dev->ndev);
-			kfree(blfc_dev);
-		}
-	}
-	mutex_unlock(&blfc_global_dev.bnxt_lfc_lock);
 
 	cdev_del(&blfc_global_dev.c_dev);
 	device_destroy(blfc_global_dev.d_class, blfc_global_dev.d_dev);

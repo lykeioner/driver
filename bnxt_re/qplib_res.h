@@ -293,7 +293,7 @@ struct bnxt_qplib_hwq {
 	u32				max_elements;
 	u32				depth;	/* original requested depth */
 	u16				element_size;	/* Size of each entry */
-	u16				qe_ppg;		/* queue entry per page */
+	u32				qe_ppg;		/* queue entry per page */
 
 	u32				prod;		/* raw */
 	u32				cons;		/* raw */
@@ -636,22 +636,7 @@ static inline u8 _get_base_pg_size(struct bnxt_qplib_hwq *hwq)
 
 static inline u8 _get_pbl_page_size(struct bnxt_qplib_sg_info *sginfo)
 {
-	switch (sginfo->pgsize) {
-	case ROCE_PG_SIZE_4K:
-		return BNXT_QPLIB_HWRM_PBL_PG_SIZE_PG_4K;
-	case ROCE_PG_SIZE_8K:
-		return BNXT_QPLIB_HWRM_PBL_PG_SIZE_PG_8K;
-	case ROCE_PG_SIZE_64K:
-		return BNXT_QPLIB_HWRM_PBL_PG_SIZE_PG_64K;
-	case ROCE_PG_SIZE_2M:
-		return BNXT_QPLIB_HWRM_PBL_PG_SIZE_PG_2M;
-	case ROCE_PG_SIZE_8M:
-		return BNXT_QPLIB_HWRM_PBL_PG_SIZE_PG_8M;
-	case ROCE_PG_SIZE_1G:
-		return BNXT_QPLIB_HWRM_PBL_PG_SIZE_PG_1G;
-	default:
-		return BNXT_QPLIB_HWRM_PBL_PG_SIZE_PG_4K;
-	}
+	return BNXT_QPLIB_HWRM_PBL_PG_SIZE_PG_4K;
 }
 
 static inline int bnxt_re_pbl_size_supported(u8 dev_cap_ext_flags_1)

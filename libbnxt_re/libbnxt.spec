@@ -1,12 +1,12 @@
 Name	: libbnxt_re
-Version	: 233.2.82.0
+Version	: 233.2.77.9
 Release	: _PARAM_RELEASE%{?dist}
 Summary	: Userspace Library for Broadcom ROCE Device.
 Group	: System Environment/Libraries
 License	: GPL/BSD
 Vendor	: Broadcom Limited
 URL	: http://www.broadcom.com
-Source	: libbnxt_re-233.2.82.0.tar.gz
+Source	: libbnxt_re-233.2.77.9.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires: libibverbs-devel
 

@@ -1347,10 +1347,10 @@ int bnxt_qplib_create_qp(struct bnxt_qplib_res *res, struct bnxt_qplib_qp *qp)
 		rc = bnxt_re_setup_qp_swqs(qp);
 		if (rc)
 			goto destroy_qp;
+		if (qp->psn_sz)
+			bnxt_qplib_init_psn_ptr(qp, qp->psn_sz);
 	}
 	bnxt_qp_init_dbinfo(res, qp);
-	if (qp->psn_sz)
-		bnxt_qplib_init_psn_ptr(qp, qp->psn_sz);
 
 	if (rcfw->roce_context_destroy_sb) {
 		qp->ctx_size_sb = resp.context_size * BNXT_QPLIB_CMDQE_UNITS;
@@ -2777,6 +2777,7 @@ int bnxt_qplib_resize_cq(struct bnxt_qplib_res *res, struct bnxt_qplib_cq *cq,
 	u32 pgsz = 0, lvl = 0, nsz = 0;
 	struct bnxt_qplib_pbl *pbl;
 	u16 count = -1;
+	u32 fco = 0;
 	int rc;
 
 	bnxt_qplib_rcfw_cmd_prep(&req, CMDQ_BASE_OPCODE_RESIZE_CQ,
@@ -2814,6 +2815,9 @@ int bnxt_qplib_resize_cq(struct bnxt_qplib_res *res, struct bnxt_qplib_cq *cq,
 		req.pbl_pg_size = _get_pbl_page_size(&cq->sginfo);
 	}
 
+	fco = hwq_attr.sginfo->fwo_offset;
+	req.new_cq_fco = cpu_to_le32(((fco >> 5) << CMDQ_RESIZE_CQ_CQ_FCO_SFT) &
+				     CMDQ_RESIZE_CQ_CQ_FCO_MASK);
 	if (!cq->resize_hwq.is_user)
 		set_bit(CQ_FLAGS_RESIZE_IN_PROG, &cq->flags);
 

@@ -88,7 +88,8 @@ static void bnxt_re_resolve_cb(int status, struct sockaddr *src_addr,
 static int bnxt_re_resolve_eth_dmac_by_grh(const struct ib_gid_attr *sgid_attr,
 					   const union ib_gid *sgid,
 					   const union ib_gid *dgid,
-					   u8 *dmac, int *hoplimit)
+					   u8 *dmac, u8 *smac,
+					   int *hoplimit)
 {
 	struct bnxt_re_resolve_cb_context ctx;
 	struct rdma_dev_addr dev_addr;
@@ -119,6 +120,7 @@ static int bnxt_re_resolve_eth_dmac_by_grh(const struct ib_gid_attr *sgid_attr,
 		return rc;
 
 	memcpy(dmac, dev_addr.dst_dev_addr, ETH_ALEN);
+	memcpy(smac, dev_addr.src_dev_addr, ETH_ALEN);
 	*hoplimit = dev_addr.hoplimit;
 	return 0;
 }
@@ -126,8 +128,10 @@ static int bnxt_re_resolve_eth_dmac_by_grh(const struct ib_gid_attr *sgid_attr,
 static int bnxt_re_resolve_gid_dmac(struct ib_device *device,
 				    struct rdma_ah_attr *ah_attr)
 {
+	struct bnxt_re_dev *rdev = to_bnxt_re_dev(device, ibdev);
 	const struct ib_gid_attr *sgid_attr;
 	struct ib_global_route *grh;
+	u8 smac[ETH_ALEN] = {};
 	int hop_limit = 0xff;
 	int rc = 0;
 
@@ -147,11 +151,19 @@ static int bnxt_re_resolve_gid_dmac(struct ib_device *device,
 		return rc;
 	}
 
+	dev_dbg(rdev_to_dev(rdev),
+		"%s: netdev: %s sgid: %pI6 dgid: %pI6 gid_type: %d gid_index: %d\n",
+		__func__, rdev->netdev ? rdev->netdev->name : "NULL",
+		&sgid_attr->gid, &grh->dgid, sgid_attr->gid_type, grh->sgid_index);
+
 	rc = bnxt_re_resolve_eth_dmac_by_grh(sgid_attr, &sgid_attr->gid,
 					     &grh->dgid, ah_attr->roce.dmac,
-					     &hop_limit);
-	if (!rc)
+					     smac, &hop_limit);
+	if (!rc) {
 		grh->hop_limit = hop_limit;
+		dev_dbg(rdev_to_dev(rdev), "%s: Resolved: dmac: %pM smac: %pM\n",
+			__func__, ah_attr->roce.dmac, smac);
+	}
 	return rc;
 }
 
@@ -215,7 +227,8 @@ static int bnxt_re_copyin_ah_attr(struct ib_device *device,
 	grh->traffic_class = sattr->grh.traffic_class;
 
 	rc = bnxt_re_resolve_eth_dmac(device, dattr);
-	rdma_put_gid_attr(sgid_attr);
+	if (rc)
+		rdma_put_gid_attr(sgid_attr);
 	return rc;
 }
 
@@ -224,6 +237,9 @@ static int bnxt_re_dv_copy_qp_attr(struct bnxt_re_dev *rdev,
 				   struct ib_uverbs_qp_attr *src)
 {
 	int rc;
+
+	if (src->qp_attr_mask & IB_QP_ALT_PATH)
+		return -EINVAL;
 
 	dst->qp_state           = src->qp_state;
 	dst->cur_qp_state       = src->cur_qp_state;
@@ -244,10 +260,6 @@ static int bnxt_re_dv_copy_qp_attr(struct bnxt_re_dev *rdev,
 	if (src->qp_attr_mask & IB_QP_AV) {
 		rc = bnxt_re_copyin_ah_attr(&rdev->ibdev, &dst->ah_attr,
 					    &src->ah_attr);
-		if (rc)
-			return rc;
-		rc = bnxt_re_copyin_ah_attr(&rdev->ibdev, &dst->alt_ah_attr,
-					    &src->alt_ah_attr);
 		if (rc)
 			return rc;
 	}
@@ -333,10 +345,14 @@ static int bnxt_re_dv_modify_qp_v2(struct ib_uobject *uobj,
 		dev_err(rdev_to_dev(rdev),
 			"%s: Modify QP failed: 0x%llx, handle: 0x%x\n",
 			 __func__, (u64)qp, uobj->id);
+		if (qp_u_attr.qp_attr_mask & IB_QP_AV)
+			rdma_put_gid_attr(qp_attr.ah_attr.grh.sgid_attr);
 	} else {
 		dev_dbg(rdev_to_dev(rdev),
 			"%s: Modified QP: 0x%llx, handle: 0x%x\n",
 			__func__, (u64)qp, uobj->id);
+		if (qp_u_attr.qp_attr_mask & IB_QP_AV)
+			qp->sgid_attr = qp_attr.ah_attr.grh.sgid_attr;
 	}
 	return err;
 }
@@ -1192,6 +1208,10 @@ static int UVERBS_HANDLER(BNXT_RE_METHOD_DV_CREATE_CQ)(struct uverbs_attr_bundle
 	re_uctx = container_of(ib_uctx, struct bnxt_re_ucontext, ib_uctx);
 	rdev = re_uctx->rdev;
 
+	/* Driver is unloading, fail the request */
+	if (test_bit(BNXT_RE_FLAG_UNLOADING, &rdev->flags))
+		return -ENODEV;
+
 	ret = uverbs_copy_from_or_zero(&req, attrs, BNXT_RE_DV_CREATE_CQ_REQ);
 	if (ret) {
 		dev_err(rdev_to_dev(rdev), "%s: Failed to copy request: %d\n",
@@ -1239,7 +1259,8 @@ static int UVERBS_HANDLER(BNXT_RE_METHOD_DV_CREATE_CQ)(struct uverbs_attr_bundle
 	bnxt_re_dv_finalize_uobj(uobj, re_cq, attrs, BNXT_RE_DV_CREATE_CQ_HANDLE);
 	bnxt_re_dv_init_ib_cq(rdev, ib_cq, re_cq);
 	BNXT_RE_RES_LIST_ADD(rdev, re_cq, BNXT_RE_RES_TYPE_CQ);
-	BNXT_RE_DV_RES_LIST_ADD(rdev, re_cq, BNXT_RE_DV_RES_TYPE_CQ);
+	re_cq->is_dv_cq = true;
+	atomic_inc(&rdev->dv_cq_count);
 
 	dev_dbg(rdev_to_dev(rdev), "%s: Created CQ: 0x%llx, handle: 0x%x\n",
 		__func__, (u64)re_cq, uobj->id);
@@ -1287,6 +1308,7 @@ void bnxt_re_dv_destroy_cq(struct bnxt_re_dev *rdev, struct bnxt_re_cq *cq)
 		kfree(cq->umem_handle);
 	}
 	atomic_dec(&rdev->stats.rsors.cq_count);
+	atomic_dec(&rdev->dv_cq_count);
 	kfree(cq);
 }
 
@@ -1305,13 +1327,20 @@ static int bnxt_re_dv_free_cq(struct ib_uobject *uobj,
 
 	re_uctx = container_of(ib_uctx, struct bnxt_re_ucontext, ib_uctx);
 	rdev = re_uctx->rdev;
+
+	/* Driver is unloading, we can return safely as resources will be
+	 * destroyed inside bnxt_re_free_dv_res()
+	 */
+	if (test_bit(BNXT_RE_FLAG_UNLOADING, &rdev->flags)) {
+		uobj->object = NULL;
+		return 0;
+	}
 	cq = uobj->object;
 
 	dev_dbg(rdev_to_dev(rdev), "%s: Destroy CQ: 0x%llx, handle: 0x%x\n",
 		__func__, (u64)cq, uobj->id);
 
 	BNXT_RE_RES_LIST_DEL(rdev, cq, BNXT_RE_RES_TYPE_CQ);
-	BNXT_RE_DV_RES_LIST_DEL(rdev, cq, BNXT_RE_DV_RES_TYPE_CQ);
 	bnxt_re_dv_destroy_cq(rdev, cq);
 
 	uobj->object = NULL;
@@ -1668,7 +1697,6 @@ static void bnxt_re_dv_init_qp(struct bnxt_re_dev *rdev,
 		atomic_set(&rdev->stats.rsors.max_qp_count, active_qps);
 	bnxt_re_qp_info_add_qpinfo(rdev, qp);
 	BNXT_RE_RES_LIST_ADD(rdev, qp, BNXT_RE_RES_TYPE_QP);
-	BNXT_RE_DV_RES_LIST_ADD(rdev, qp, BNXT_RE_DV_RES_TYPE_QP);
 
 	/* Get the counters for RC QPs and UD QPs */
 	tmp_qps = atomic_inc_return(&rdev->stats.rsors.rc_qp_count);
@@ -1707,6 +1735,10 @@ static int UVERBS_HANDLER(BNXT_RE_METHOD_DV_CREATE_QP)(struct uverbs_attr_bundle
 
 	re_uctx = container_of(ib_uctx, struct bnxt_re_ucontext, ib_uctx);
 	rdev = re_uctx->rdev;
+
+	/* Driver is unloading, fail the request */
+	if (test_bit(BNXT_RE_FLAG_UNLOADING, &rdev->flags))
+		return -ENODEV;
 
 	ret = uverbs_copy_from_or_zero(&req, attrs, BNXT_RE_DV_CREATE_QP_REQ);
 	if (ret) {
@@ -1781,6 +1813,8 @@ static int UVERBS_HANDLER(BNXT_RE_METHOD_DV_CREATE_QP)(struct uverbs_attr_bundle
 
 	bnxt_re_dv_finalize_uobj(uobj, re_qp, attrs, BNXT_RE_DV_CREATE_QP_HANDLE);
 	bnxt_re_dv_init_qp(rdev, re_qp);
+	re_qp->is_dv_qp = true;
+	atomic_inc(&rdev->dv_qp_count);
 	dev_dbg(rdev_to_dev(rdev), "%s: Created QP: 0x%llx, handle: 0x%x\n",
 		__func__, (u64)re_qp, uobj->id);
 
@@ -1840,6 +1874,10 @@ void bnxt_re_dv_destroy_qp(struct bnxt_re_dev *rdev, struct bnxt_re_qp *qp)
 	bnxt_re_synchronize_nq(scq_nq);
 	if (scq_nq != rcq_nq)
 		bnxt_re_synchronize_nq(rcq_nq);
+
+	if (qp->sgid_attr)
+		rdma_put_gid_attr(qp->sgid_attr);
+	atomic_dec(&rdev->dv_qp_count);
 	kfree(qp);
 }
 
@@ -1858,13 +1896,20 @@ static int bnxt_re_dv_free_qp(struct ib_uobject *uobj,
 
 	re_uctx = container_of(ib_uctx, struct bnxt_re_ucontext, ib_uctx);
 	rdev = re_uctx->rdev;
+
+	/* Driver is unloading, we can return safely as resources will be
+	 * destroyed inside bnxt_re_free_dv_res()
+	 */
+	if (test_bit(BNXT_RE_FLAG_UNLOADING, &rdev->flags)) {
+		uobj->object = NULL;
+		return 0;
+	}
 	qp = uobj->object;
 
 	dev_dbg(rdev_to_dev(rdev), "%s: Destroy QP: 0x%llx, handle: 0x%x\n",
 		__func__, (u64)qp, uobj->id);
 
 	BNXT_RE_RES_LIST_DEL(rdev, qp, BNXT_RE_RES_TYPE_QP);
-	BNXT_RE_DV_RES_LIST_DEL(rdev, qp, BNXT_RE_DV_RES_TYPE_QP);
 	bnxt_re_dv_destroy_qp(rdev, qp);
 
 	uobj->object = NULL;

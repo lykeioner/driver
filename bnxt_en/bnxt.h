@@ -2570,7 +2570,6 @@ struct bnxt_bond_info {
 	u8 primary:1;
 	u8 aggr_mode;
 	u8 fw_lag_id;
-	u16 roce_vnic_id;
 };
 
 #define BNXT_TRACE_BUF_MAGIC_BYTE ((u8)0xBC)

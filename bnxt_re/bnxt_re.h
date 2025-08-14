@@ -92,8 +92,8 @@
 #include "compat.h"
 
 #define ROCE_DRV_MODULE_NAME		"bnxt_re"
-#define ROCE_DRV_MODULE_VERSION "233.2.82.0"
-#define ROCE_DRV_MODULE_RELDATE "July 23, 2025"
+#define ROCE_DRV_MODULE_VERSION "233.2.77.9"
+#define ROCE_DRV_MODULE_RELDATE "July 31, 2025"
 
 #define BNXT_RE_REF_WAIT_COUNT		20
 #define BNXT_RE_ROCE_V1_ETH_TYPE	0x8915
@@ -364,21 +364,6 @@ struct bnxt_dbq_nq_list {
 	spin_unlock(&(_rdev)->res_list[_type].lock);			\
 }
 
-#define BNXT_RE_DV_RES_LIST_ADD(_rdev, _res, _type)			\
-{									\
-	mutex_lock(&(_rdev)->dv_res_list[_type].lock);			\
-	list_add_tail(&(_res)->dv_res_list,				\
-		      &(_rdev)->dv_res_list[_type].head);			\
-	mutex_unlock(&(_rdev)->dv_res_list[_type].lock);			\
-}
-
-#define BNXT_RE_DV_RES_LIST_DEL(_rdev, _res, _type)			\
-{									\
-	mutex_lock(&(_rdev)->dv_res_list[_type].lock);			\
-	list_del(&(_res)->dv_res_list);					\
-	mutex_unlock(&(_rdev)->dv_res_list[_type].lock);			\
-}
-
 #define BNXT_RE_CQ_PAGE_LIST_ADD(_uctx, _cq)				\
 {									\
 	mutex_lock(&(_uctx)->cq_lock);					\
@@ -432,12 +417,6 @@ enum {
 	BNXT_RE_DV_RES_TYPE_QP = 0,
 	BNXT_RE_DV_RES_TYPE_CQ,
 	BNXT_RE_DV_RES_TYPE_MAX
-};
-
-struct bnxt_re_dv_res_list {
-	struct list_head head;
-	/* serialize access to DV resource list */
-	struct mutex lock;
 };
 
 struct bnxt_re_dbr_drop_recov_work {
@@ -641,6 +620,7 @@ struct bnxt_re_dev {
 	unsigned long			flags;
 #define BNXT_RE_FLAG_NETDEV_REGISTERED		0
 #define BNXT_RE_FLAG_IBDEV_REGISTERED		1
+#define BNXT_RE_FLAG_UNLOADING			2
 #define BNXT_RE_FLAG_ALLOC_RCFW			4
 #define BNXT_RE_FLAG_NET_RING_ALLOC		5
 #define BNXT_RE_FLAG_RCFW_CHANNEL_EN		6
@@ -770,12 +750,6 @@ struct bnxt_re_dev {
 
 	struct bnxt_re_dbr_sw_stats *dbr_sw_stats;
 	struct bnxt_re_res_list res_list[BNXT_RE_RES_TYPE_MAX];
-	/* Track DV resources in a separate list, to avoid taking the spinlock.
-	 * These resources need to be destroyed in Firmware (qplib_destroy)
-	 * while traversing the list. The new list uses a mutex lock to
-	 * handle this scenario.
-	 */
-	struct bnxt_re_dv_res_list dv_res_list[BNXT_RE_DV_RES_TYPE_MAX];
 	struct bnxt_dbq_nq_list nq_list;
 #ifdef IB_PEER_MEM_MOD_SUPPORT
 	struct ib_peer_mem_device *peer_dev;
@@ -813,6 +787,9 @@ struct bnxt_re_dev {
 	/* Config option to tune QP/MR dbg feature */
 	u8 snapdump_dbg_lvl;
 	u8                      enable_queue_overflow_telemetry;
+
+	atomic_t		dv_cq_count;
+	atomic_t		dv_qp_count;
 };
 
 #define bnxt_re_dev_pcifn_id(rdev)	((rdev)->en_dev->pdev->devfn)

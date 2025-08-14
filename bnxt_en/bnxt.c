@@ -16866,7 +16866,6 @@ hwrm_mac_qcfg_exit:
 
 int bnxt_hwrm_get_dflt_roce_vnic(struct bnxt *bp, u16 fid, u16 *vnic_id)
 {
-	struct bnxt_bond_info *binfo = bp->bond_info;
 	struct hwrm_func_qcfg_output *resp;
 	struct hwrm_func_qcfg_input *req;
 	int rc;
@@ -16881,29 +16880,11 @@ int bnxt_hwrm_get_dflt_roce_vnic(struct bnxt *bp, u16 fid, u16 *vnic_id)
 	if (rc)
 		goto drop_req;
 
-	if (le16_to_cpu(resp->flags) & FUNC_QCFG_RESP_FLAGS_ROCE_VNIC_ID_VALID) {
+	if (le16_to_cpu(resp->flags) & FUNC_QCFG_RESP_FLAGS_ROCE_VNIC_ID_VALID)
 		*vnic_id = le16_to_cpu(resp->roce_vnic_id);
-		netdev_dbg(bp->dev, "Got RoCE VNIC 0x%x for fid %d\n", *vnic_id, req->fid);
 
-		/*
-		 * when bond is enabled and after a fw reset, the fw is not
-		 * sending the correct roce vnic since the bond information
-		 * is being sent by roce driver and it is not serialized
-		 * that could result in incorrect vnic being given by FW.
-		 * So instead use the saved roce vnic after the fw reset.
-		 */
-		if (binfo && binfo->bond_active &&
-		    binfo->fw_lag_id != BNXT_INVALID_LAG_ID &&
-		    binfo->roce_vnic_id == (u16)BNXT_VNIC_ID_INVALID &&
-		    (bp->flags & BNXT_FLAG_CHIP_P7)) {
-			binfo->roce_vnic_id = *vnic_id;
-		} else if (binfo && binfo->bond_active &&
-			  binfo->roce_vnic_id != (u16)BNXT_VNIC_ID_INVALID &&
-			  (bp->flags & BNXT_FLAG_CHIP_P7)) {
-			*vnic_id = binfo->roce_vnic_id;
-		}
-	}
 	netdev_dbg(bp->dev, "RoCE VNIC 0x%x for fid %d\n", *vnic_id, req->fid);
+
 drop_req:
 	hwrm_req_drop(bp, req);
 	return rc;
@@ -22072,7 +22053,6 @@ static void bnxt_init_lag(struct bnxt *bp)
 
 	binfo->bp = bp;
 	binfo->fw_lag_id = BNXT_INVALID_LAG_ID;
-	binfo->roce_vnic_id = (u16)BNXT_VNIC_ID_INVALID;
 	notif_blk = &binfo->notif_blk;
 	bp->bond_info = binfo;
 	notif_blk->notifier_call = bnxt_hdl_netdev_events;
